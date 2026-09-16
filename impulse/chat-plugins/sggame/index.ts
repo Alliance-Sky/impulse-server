@@ -8,8 +8,8 @@ import { calculateCatchShakes } from '../../utils/catch';
 import { SGItems } from './items';
 import { getLevelUpEvo, getItemEvolution } from '../../utils/evolutions';
 import { expForLevel, getExpType } from '../../utils/exp';
-import { getMovesLearnedBetween } from '../../utils/moves';
-import { ALL_STARTERS, SG_LOCATIONS, getLocation } from './data';
+import { ALL_STARTERS } from './data';
+import { getLocation, getLocationOrNull } from './locations';
 
 const WildEncounters = new Map<string, any>();
 
@@ -377,12 +377,11 @@ export const commands: Chat.ChatCommands = {
 			const player = Database.load(user.id);
 			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
 
-			const targetId = toID(target);
-			if (!targetId) {
+			if (!target.trim()) {
 				return this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'travel')}`);
 			}
 
-			const loc = SG_LOCATIONS[targetId];
+			const loc = getLocationOrNull(target);
 			if (!loc) return this.errorReply("Invalid location.");
 
 			player.location = loc.name;
