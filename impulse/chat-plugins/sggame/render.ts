@@ -1,7 +1,8 @@
 import { expForLevel, getExpType } from "../../utils/exp";
 import { type SGPlayer } from './types';
 import { SGItems } from './items';
-import { STARTER_GENS, SG_LOCATIONS } from './data';
+import { STARTER_GENS } from './data';
+import { SG_LOCATIONS } from './locations';
 
 export const SGRenderer = {
 	renderUI(player: SGPlayer, screen = 'home', context?: any): string {
@@ -33,34 +34,24 @@ export const SGRenderer = {
 			const prevGen = curGen > 1 ? curGen - 1 : 9;
 			const nextGen = curGen < 9 ? curGen + 1 : 1;
 
-			html += `<div style="text-align: center; margin-bottom: 5px;"><strong style="font-size: 12px;">CHOOSE YOUR STARTER POKÉMON</strong></div>`;
+			html += `<div style="text-align: center; margin-bottom: 6px;"><strong style="font-size: 12px;">CHOOSE YOUR STARTER POKÉMON</strong></div>`;
 
 			// Gen navigator header
-			html += `<div style="text-align: center; margin-bottom: 6px;">`;
-			html += `<button name="send" value="/sg pickstarter ${prevGen}" style="background: none; border: 1px solid ${gbDark}; padding: 1px 7px; cursor: pointer; color: inherit; font-size: 10px; font-weight: bold; border-radius: 3px;">◀</button> `;
-			html += `<span style="font-weight: bold; font-size: 11px; margin: 0 4px; display: inline-block; min-width: 140px;">GEN ${curGen} (${genData.region.toUpperCase()})</span> `;
-			html += `<button name="send" value="/sg pickstarter ${nextGen}" style="background: none; border: 1px solid ${gbDark}; padding: 1px 7px; cursor: pointer; color: inherit; font-size: 10px; font-weight: bold; border-radius: 3px;">▶</button>`;
-			html += `</div>`;
-
-			// Gen quick tabs (G1 - G9)
-			html += `<div style="text-align: center; margin-bottom: 10px;">`;
-			for (let g = 1; g <= 9; g++) {
-				const isSel = g === curGen;
-				const btnStyle = isSel ?
-					`background: ${gbDark}; color: #fff; border: 1px solid ${gbDark}; font-weight: bold;` :
-					`background: none; color: ${gbDark}; border: 1px solid #aaa;`;
-				html += `<button name="send" value="/sg pickstarter ${g}" style="${btnStyle} padding: 2px 4px; font-size: 9px; margin: 1px; border-radius: 3px; cursor: pointer;">G${g}</button>`;
-			}
+			html += `<div style="text-align: center; margin-bottom: 8px;">`;
+			html += `<button name="send" value="/sg pickstarter ${prevGen}" style="background: none; border: 1px solid ${gbDark}; padding: 2px 8px; cursor: pointer; color: inherit; font-size: 11px; font-weight: bold; border-radius: 3px;">◀</button> `;
+			html += `<span style="font-weight: bold; font-size: 11px; margin: 0 6px; display: inline-block; min-width: 150px;">GEN ${curGen} (${genData.region.toUpperCase()})</span> `;
+			html += `<button name="send" value="/sg pickstarter ${nextGen}" style="background: none; border: 1px solid ${gbDark}; padding: 2px 8px; cursor: pointer; color: inherit; font-size: 11px; font-weight: bold; border-radius: 3px;">▶</button>`;
 			html += `</div>`;
 
 			// Starter cards
-			html += `<div style="display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">`;
+			html += `<div style="text-align: center; margin-top: 15px;">`;
 			for (const mon of genData.starters) {
 				const sp = Dex.species.get(mon);
-				html += `<button name="send" value="/sg starter ${mon}" style="flex: 1 1 28%; max-width: 31%; min-width: 75px; background: rgba(255,255,255,0.6); border: 2px solid ${gbDark}; padding: 6px 2px; color: ${gbDark}; cursor: pointer; color: inherit; border-radius: 6px; text-align: center; box-shadow: 1px 1px 2px rgba(0,0,0,0.1);">`;
-				html += `<psicon pokemon="${mon}" /><br/>`;
-				html += `<strong style="font-size: 11px;">${sp.name}</strong><br/>`;
-				html += `<span style="font-size: 9px; color: #555;">${sp.types.join('/')}</span>`;
+				html += `<button name="send" value="/sg starter ${mon}" style="display: inline-block; vertical-align: top; width: 88px; margin: 6px; background: #ffffff; border: 2px solid ${gbDark}; padding: 12px 4px 10px 4px; color: ${gbDark}; cursor: pointer; color: inherit; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">`;
+				html += `<div style="height: 38px; line-height: 38px;"><psicon pokemon="${mon}" style="transform: scale(1.25); display: inline-block;" /></div>`;
+				html += `<div style="font-weight: bold; font-size: 11px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${sp.name}</div>`;
+				html += `<div style="font-size: 9.5px; color: #666; margin-top: 2px;">${sp.types.join('/')}</div>`;
+				html += `<div style="margin-top: 8px; background: ${gbDark}; color: #fff; font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 3px; display: inline-block;">CHOOSE</div>`;
 				html += `</button>`;
 			}
 			html += `</div>`;
