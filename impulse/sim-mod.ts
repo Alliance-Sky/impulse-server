@@ -52,7 +52,7 @@ export const ImpulseMod = {
 		return out;
 	},
 
-	parseCustomData(set: any, line: string, aggressive: boolean, toID: (s: string) => string): boolean {
+	parseCustomData(set: any, line: string, aggressive?: boolean, toID?: (s: string) => string): boolean {
 		if (line.startsWith('HP: ')) {
 			line = line.slice(4).replace('%', '');
 			set.hp = parseInt(line);
@@ -80,7 +80,7 @@ export const ImpulseMod = {
 		return false;
 	},
 
-	sanitizeCustomData(set: any, aggressive: boolean, sanitize: (s: string) => string, toID: (s: string) => string) {
+	sanitizeCustomData(set: any, aggressive?: boolean, sanitize?: (s: string) => string, toID?: (s: string) => string) {
 		if (set.status) set.status = aggressive ? toID(set.status) : sanitize(set.status);
 		if (set.hp !== undefined) set.hp = Number(set.hp);
 	},
