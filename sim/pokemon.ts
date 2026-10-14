@@ -1000,7 +1000,7 @@ export class Pokemon {
 			switch (moveSlot.id) {
 			case 'curse':
 				if (!this.hasType('Ghost')) {
-					target = this.battle.dex.moves.get('curse').nonGhostTarget;
+					target = 'self';
 				}
 				break;
 			case 'pollenpuff':
@@ -1857,7 +1857,7 @@ export class Pokemon {
 
 	takeItem(source?: Pokemon) {
 		if (!source) source = this;
-		if (this.battle.gen <= 4 && (this.itemKnockedOff || source.itemKnockedOff)) return false;
+		if (this.battle.gen === 4 && (this.itemKnockedOff || source.itemKnockedOff)) return false;
 		if (!this.item) return;
 		const item = this.getItem();
 		if (this.battle.runEvent('TakeItem', this, source, null, item)) {
@@ -2198,8 +2198,7 @@ export class Pokemon {
 		if (!sourceEffect && this.battle.effect) sourceEffect = this.battle.effect;
 		const weather = this.battle.field.effectiveWeather();
 		if (this.battle.activePokemon?.hasAbility('megasol') && sourceEffect &&
-			(sourceEffect.id === 'megasol' || sourceEffect.effectType === 'Move' || sourceEffect.effectType === 'Weather') &&
-			sourceEffect.id !== 'electroshot') {
+			(sourceEffect.id === 'megasol' || sourceEffect.effectType === 'Move' || sourceEffect.effectType === 'Weather')) {
 			if (weather !== 'sunnyday' && message) this.battle.add('-activate', this, 'ability: Mega Sol');
 			return 'sunnyday' as ID;
 		}

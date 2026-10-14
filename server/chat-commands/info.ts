@@ -16,6 +16,15 @@ import { RoomSections } from './room-settings';
 const ONLINE_SYMBOL = ` \u25C9 `;
 const OFFLINE_SYMBOL = ` \u25CC `;
 
+export function validateMediaURL(link: string) {
+	if (link.includes('data:image/png;base64')) {
+		throw new Chat.ErrorMessage('Please provide an actual link (you probably copied the URL wrong?).');
+	}
+	if (!/^https?:\/\//i.test(link)) {
+		throw new Chat.ErrorMessage('Invalid URL. URL must start with http: or https:.');
+	}
+}
+
 interface DexResources {
 	url: string;
 	resources: { resource_name: string, url: string }[];
@@ -1549,7 +1558,7 @@ export const commands: Chat.ChatCommands = {
 		if (realSet) {
 			if (!baseSet) {
 				if (calcHP) {
-					baseStat = Math.ceil((100 * realStat - 10 - level * (Math.floor(ev / 4) + iv + 100)) / (2 * level));
+					baseStat = Math.ceil((100 * (realStat - 10) - level * (Math.floor(ev / 4) + iv + 100)) / (2 * level));
 				} else {
 					if (!positiveMod) {
 						realStat *= (2 + modifier) / 2;
@@ -1578,7 +1587,10 @@ export const commands: Chat.ChatCommands = {
 					ev = Math.ceil(-1 * (2 * (nature * (baseStat * level + 250) - 50 * Math.ceil(realStat))) / (level * nature));
 				}
 				ev -= 31;
-				if (ev < 0) iv += ev;
+				if (ev < 0) {
+					iv += ev;
+					ev = 0;
+				}
 				ev *= 4;
 				if (iv < 0 || ev > 255) {
 					return this.sendReplyBox(`No valid EV/IV combination possible with given parameters. Maybe try a different nature?${ev}`);
@@ -2613,11 +2625,9 @@ export const commands: Chat.ChatCommands = {
 		let [link, comment] = this.splitOne(target);
 		if (!/^https?:\/\//.test(link)) link = `https://${link}`;
 		link = encodeURI(link);
+		validateMediaURL(link);
 		let dimensions;
 		if (!/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)(\/|$)/i.test(link)) {
-			if (link.includes('data:image/png;base64')) {
-				throw new Chat.ErrorMessage('Please provide an actual link (you probably copied the URL wrong?).');
-			}
 			try {
 				dimensions = await Chat.fitImage(link);
 			} catch {
@@ -2742,6 +2752,7 @@ export const commands: Chat.ChatCommands = {
 			}
 		}
 
+		validateMediaURL(link);
 		this.runBroadcast();
 		let buf;
 		if (YouTube.linkRegex.test(link)) {
@@ -2760,9 +2771,6 @@ export const commands: Chat.ChatCommands = {
 				} else if (/^https?:\/\/(.*)\.(mp3|wav)\b(\?|$)/i.test(link)) { // audio
 					buf = Utils.html`<audio src="${link}" controls=""></audio>`;
 				}
-			}
-			if (link.includes('data:image/png;base64')) {
-				throw new Chat.ErrorMessage('Please provide an actual link (you probably copied it wrong?).');
 			}
 			if (!buf) { // fall back on image
 				try {

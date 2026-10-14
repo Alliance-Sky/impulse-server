@@ -1017,6 +1017,7 @@ const ticketTitles: { [k: string]: string } = {
 	appeal: TLkey`Appeal`,
 	ipappeal: TLkey`IP-Appeal`,
 	roomhelp: TLkey`Public Room Assistance Request`,
+	registerbot: TLkey`Bot Registration Request`,
 	other: TLkey`Other`,
 };
 const ticketPages: { [k: string]: string } = {
@@ -1047,6 +1048,7 @@ const ticketPages: { [k: string]: string } = {
 	misc: TLkey`Something else`,
 	password: TLkey`I lost my password`,
 	roomhelp: TLkey`I need global staff to help watch a public room`,
+	registerbot: TLkey`I want to register my bot`,
 	other: TLkey`Other`,
 
 	confirmpmharassment: TLkey`Report harassment in a private message (PM)`,
@@ -1056,6 +1058,7 @@ const ticketPages: { [k: string]: string } = {
 	confirmappeal: TLkey`Appeal your lock`,
 	confirmipappeal: TLkey`Appeal IP lock`,
 	confirmroomhelp: TLkey`Call a Global Staff member to help`,
+	confirmregisterbot: TLkey`I want to register my bot`,
 	confirmother: TLkey`Call a Global Staff member`,
 };
 const cheatingScenarios = [
@@ -1434,6 +1437,34 @@ export const textTickets: { [k: string]: TextTicketInfo } = {
 			writeTickets();
 		},
 	},
+	registerbot: {
+		title: "What is the username of the bot you wish to register?",
+		contextMessage: "What is a username we can contact you as the bot owner at?",
+		checker(input, context, pageId, user) {
+			input = toID(input);
+			context = toID(context);
+			if (!input || !context || input.length > 18 || context.length > 18) {
+				return [
+					'You must provide both the username of the bot and a username we can contact you at.',
+					'You have not provided both a valid bot and a valid owner name.',
+				];
+			}
+			if (user.locked || user.semilocked || user.namelocked) {
+				return ['Punished users may not register bots.'];
+			}
+			return true;
+		},
+		getReviewDisplay(ticket, staff, conn, state) {
+			if (!staff.can('rangeban')) throw new Chat.ErrorMessage(`Only upper staff can handle these tickets.`);
+			const [bot, owner] = ticket.text.map(toID);
+			let buf = `Request made by: ${owner}${owner !== ticket.userid ? ` (ticket by ${ticket.userid})` : ''}`;
+			buf += `<button name="send" value="/modlog global,user=${owner}">Modlog</button><br />`;
+			buf += `Bot user: ${bot} <button name="send" value="/modlog global,user=${bot}">Modlog</button><br />`;
+			buf += `Confirmed they're indeed a bot? Confirmed the user is well-behaved? `;
+			buf += `<button name="send" value="/setbot ${owner},${bot}">Register</button><br />`;
+			return buf;
+		},
+	},
 };
 
 export const pages: Chat.PageTable = {
@@ -1684,6 +1715,7 @@ export const pages: Chat.PageTable = {
 					if (!isLast) break;
 					buf += `<p><Button>password</Button></p>`;
 					if (user.trusted || isStaff) buf += `<p><Button>roomhelp</Button></p>`;
+					buf += `<p><Button>registerbot</Button></p>`;
 					buf += `<p><Button>other</Button></p>`;
 					break;
 				case 'password':
@@ -1692,6 +1724,10 @@ export const pages: Chat.PageTable = {
 				case 'roomhelp':
 					buf += `<p>${this.TL`If you are a room driver or up in a public room, and you need help watching the chat, one or more global staff members would be happy to assist you!`}</p>`;
 					buf += `<p><Button>confirmroomhelp</Button></p>`;
+					break;
+				case 'registerbot':
+					buf += `<p>${this.TL`If you are a bot developer, and would like to register your bot on the ladder, please fill out the form below and we'll be happy to assist!`}</p>`;
+					buf += `<p><Button>confirmregisterbot</Button></p>`;
 					break;
 				case 'other':
 					buf += `<p>${this.TL`If your issue is not handled above, click the button below to talk to a global staff member. Please be ready to explain the situation.`}</p>`;

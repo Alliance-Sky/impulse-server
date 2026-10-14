@@ -1020,13 +1020,13 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 					}
 				}
 				if (this.checkMoveMakesContact(move, source, target)) {
-					source.trySetStatus('psn', target);
+					source.trySetStatus('psn', target, this.dex.getActiveMove('Baneful Bunker'));
 				}
 				return this.NOT_FAIL;
 			},
 			onHit(target, source, move) {
 				if (move.isZOrMaxPowered && this.checkMoveMakesContact(move, source, target)) {
-					source.trySetStatus('psn', target);
+					source.trySetStatus('psn', target, this.dex.getActiveMove('Baneful Bunker'));
 				}
 			},
 		},
@@ -2055,13 +2055,13 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 					}
 				}
 				if (this.checkMoveMakesContact(move, source, target)) {
-					source.trySetStatus('brn', target);
+					source.trySetStatus('brn', target, this.dex.getActiveMove('Burning Bulwark'));
 				}
 				return this.NOT_FAIL;
 			},
 			onHit(target, source, move) {
 				if (move.isZOrMaxPowered && this.checkMoveMakesContact(move, source, target)) {
-					source.trySetStatus('brn', target);
+					source.trySetStatus('brn', target, this.dex.getActiveMove('Burning Bulwark'));
 				}
 			},
 		},
@@ -3275,8 +3275,8 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 		volatileStatus: 'curse',
 		onModifyMove(move, source, target) {
 			if (!source.hasType('Ghost')) {
-				move.target = move.nonGhostTarget!;
-			} else if (source.isAlly(target)) {
+				move.target = 'self';
+			} else if (!target || source.isAlly(target)) {
 				move.target = 'randomNormal';
 			}
 		},
@@ -3302,7 +3302,6 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 			},
 		},
 		target: "normal",
-		nonGhostTarget: "self",
 		type: "Ghost",
 		zMove: { effect: 'curse' },
 		contestType: "Tough",

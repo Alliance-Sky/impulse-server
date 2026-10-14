@@ -253,6 +253,8 @@ export abstract class BasicRoom {
 
 		this.roomid = roomid;
 		this.title = (title || roomid);
+		// should happen before making a roomlog, so we don't leave an orphaned roomlog
+		this.validateTitle(this.title, this.roomid);
 		this.parent = null;
 
 		this.userCount = 0;
@@ -331,7 +333,6 @@ export abstract class BasicRoom {
 		this.tour = null;
 		this.game = null;
 		this.battle = null;
-		this.validateTitle(this.title, this.roomid);
 	}
 
 	toString() {
@@ -1501,6 +1502,15 @@ export class GlobalRoomState {
 			if (format.teraPreviewDefault) displayCode |= 128;
 			if (format.itemClauseDefault) displayCode |= 256;
 			this.formatList += ',' + displayCode.toString(16);
+
+			// virtual formats don't support challengeShow or tournamentShow
+			const virtualDisplayCode = displayCode & ~(4 | 8);
+			for (const formatAlias in Ladders.virtualFormats) {
+				const entry = Ladders.virtualFormats[formatAlias];
+				if (entry.format === format.id) {
+					this.formatList += `|${entry.name},${virtualDisplayCode.toString(16)}`;
+				}
+			}
 		}
 		return this.formatList;
 	}
