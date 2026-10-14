@@ -2,6 +2,24 @@ import { type SGPokemon } from './types';
 import { expForLevel, getExpType, applyExpAndLevelUp } from '../../utils/exp';
 import { getMovesLearnedBetween, getAllLevelUpMoves } from '../../utils/moves';
 
+export const BADGE_LEVEL_CAPS: Record<number, number> = {
+	0: 14, // Brock cap
+	1: 21, // Misty cap
+	2: 24, // Lt. Surge cap
+	3: 29, // Erika cap
+	4: 43, // Koga cap
+	5: 43, // Sabrina cap
+	6: 47, // Blaine cap
+	7: 50, // Giovanni cap
+	8: 65, // Champion cap
+};
+
+export function getLevelCap(badgeCount: number): number {
+	if (badgeCount >= 9) return 100;
+	if (badgeCount >= 8) return 65;
+	return BADGE_LEVEL_CAPS[badgeCount] ?? 14;
+}
+
 export const SGUtils = {
 	generateWild(species: string, level: number): SGPokemon {
 		const dexSp = Dex.species.get(species);
@@ -44,14 +62,26 @@ export const SGUtils = {
 		pokemon.status = '';
 	},
 
-	giveExp(pokemon: SGPokemon, expGained: number, pendingMovesOut?: string[]): string[] {
+	giveExp(pokemon: SGPokemon, expGained: number, badgeCount = 0, pendingMovesOut?: string[]): string[] {
 		const messages: string[] = [];
 		const dexSp = Dex.species.get(pokemon.species);
 		const expType = getExpType(dexSp.id);
+		const cap = getLevelCap(badgeCount);
 
-		messages.push(`${dexSp.name} gained ${expGained} EXP!`);
+		let actualExp = expGained;
+		let hitCap = false;
 
-		const { leveledUp, newLevel, newExp } = applyExpAndLevelUp(pokemon.level, pokemon.exp, expGained, expType, 100);
+		if (pokemon.level >= cap) {
+			actualExp = 1; // Soft cap: minimal progress when capped
+			hitCap = true;
+		}
+
+		messages.push(`${dexSp.name} gained ${actualExp} EXP!`);
+		if (hitCap) {
+			messages.push(`(Soft capped at Lv${cap}! Win more Gym Badges to raise your level cap.)`);
+		}
+
+		const { leveledUp, newLevel, newExp } = applyExpAndLevelUp(pokemon.level, pokemon.exp, actualExp, expType, cap);
 
 		pokemon.exp = newExp;
 		if (leveledUp) {

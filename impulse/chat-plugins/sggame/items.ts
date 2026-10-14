@@ -236,6 +236,31 @@ export const SGItems: Record<string, SGItemData> = {
 		category: 'Key Items',
 		description: 'An item that distributes EXP points to all healthy Pokémon in your party, even if they did not participate in the battle.',
 	},
+	tree_shears: {
+		name: 'Tree Shears',
+		category: 'Key Items',
+		description: 'Sharp pruning shears capable of easily trimming small trees without requiring HM Cut.',
+	},
+	surfboard: {
+		name: 'Surfboard',
+		category: 'Key Items',
+		description: 'A sleek, buoyant board enabling you to traverse waterways and ocean routes without requiring HM Surf.',
+	},
+	bicycle: {
+		name: 'Bicycle',
+		category: 'Key Items',
+		description: 'A stylish folding bike for swift travel across routes and cycling roads.',
+	},
+	silph_scope: {
+		name: 'Silph Scope',
+		category: 'Key Items',
+		description: 'A high-tech scope designed by Silph Co. that makes invisible ghosts recognizable.',
+	},
+	fly_pass: {
+		name: 'Fly Network Pass',
+		category: 'Key Items',
+		description: 'An official Kanto League transit pass enabling fast travel across previously discovered towns.',
+	},
 
 	// Held Items
 	leftovers: {
@@ -392,4 +417,40 @@ export const SGItems: Record<string, SGItemData> = {
 		moveId: 'shadowball',
 		price: 5000,
 	},
+	tm39: {
+		name: 'TM39 Rock Tomb',
+		category: 'TMs',
+		description: 'Boulders are hurled at the target. This also lowers the target\'s Speed stat by preventing its movement.',
+		moveId: 'rocktomb',
+		price: 5000,
+	},
+	tm03: {
+		name: 'TM03 Water Pulse',
+		category: 'TMs',
+		description: 'The user attacks the target with a pulsing blast of water. This may also confuse the target.',
+		moveId: 'waterpulse',
+		price: 5000,
+	},
+	tm19: {
+		name: 'TM19 Giga Drain',
+		category: 'TMs',
+		description: 'A nutrient-draining attack. The user\'s HP is restored by half the damage taken by the target.',
+		moveId: 'gigadrain',
+		price: 5000,
+	},
+	tm29: {
+		name: 'TM29 Psychic',
+		category: 'TMs',
+		description: 'The target is hit with a strong telekinetic force. This may also lower the target\'s Sp. Def stat.',
+		moveId: 'psychic',
+		price: 5000,
+	},
+	tm38: {
+		name: 'TM38 Fire Blast',
+		category: 'TMs',
+		description: 'The target is attacked with an intense blast of all-consuming fire. This may also leave the target with a burn.',
+		moveId: 'fireblast',
+		price: 5000,
+	},
 };
+

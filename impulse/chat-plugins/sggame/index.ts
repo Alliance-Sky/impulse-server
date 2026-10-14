@@ -1,5 +1,5 @@
 import { Database, SGTimeouts } from './database';
-import { SGUtils } from './pokemon';
+import { SGUtils, getLevelCap, BADGE_LEVEL_CAPS } from './pokemon';
 import { SGBattle } from './battle';
 import { SGRenderer } from './render';
 import { Utils } from '../../../lib';
@@ -7,11 +7,14 @@ import { UtilityBattleResolver } from '../../utils/battle';
 import { calculateCatchShakes } from '../../utils/catch';
 import { SGItems } from './items';
 import { getLevelUpEvo, getItemEvolution } from '../../utils/evolutions';
-import { expForLevel, getExpType } from '../../utils/exp';
+import { getMovesLearnedBetween } from '../../utils/moves';
 import { ALL_STARTERS } from './data';
-import { getLocation, getLocationOrNull } from './locations';
+import { getLocation, getLocationOrNull, SG_LOCATIONS } from './locations';
+import { getTrainer, SG_TRAINERS } from './trainers';
 
 const WildEncounters = new Map<string, any>();
+const PendingTrades = new Map<string, { fromUser: string, toUser: string, fromSlot: number, toSlot: number, timestamp: number }>();
+const PendingPvP = new Map<string, { fromUser: string, toUser: string, timestamp: number }>();
 
 function scheduleDismiss(user: User, room: Room | null, screen: string, context: any) {
 	if (SGTimeouts.has(user.id)) clearTimeout(SGTimeouts.get(user.id));
@@ -26,26 +29,31 @@ function scheduleDismiss(user: User, room: Room | null, screen: string, context:
 	}, 3000));
 }
 
+export function getConsoleHtml(user: User): string {
+	let player = Database.load(user.id);
+	if (!player) {
+		player = Database.create(user.id);
+	}
+
+	let screen = 'home';
+	if (player.introState === 0) {
+		player.introState = 1;
+		Database.save(user.id, player);
+		screen = 'intro';
+	} else if (player.introState === 1) {
+		screen = 'intro';
+	} else if (player.introState === 2) {
+		screen = 'pick_starter';
+	}
+
+	return SGRenderer.renderUI(player, screen);
+}
+
 export const commands: Chat.ChatCommands = {
 	sg: 'sggame',
 	sggame: {
 		''(target, room, user) {
-			let player = Database.load(user.id);
-			if (!player) {
-				player = Database.create(user.id);
-			}
-
-			if (player.introState === 0) {
-				player.introState = 1;
-				Database.save(user.id, player);
-				return this.sendReply(`|uhtml|sggame|${SGRenderer.renderUI(player, 'intro')}`);
-			} else if (player.introState === 1) {
-				return this.sendReply(`|uhtml|sggame|${SGRenderer.renderUI(player, 'intro')}`);
-			} else if (player.introState === 2) {
-				return this.sendReply(`|uhtml|sggame|${SGRenderer.renderUI(player, 'pick_starter')}`);
-			}
-
-			this.sendReply(`|uhtml|sggame|${SGRenderer.renderUI(player, 'home')}`);
+			this.sendReply(`|uhtml|sggame|${getConsoleHtml(user)}`);
 		},
 
 		dismissmsg(target, room, user) {
@@ -63,14 +71,44 @@ export const commands: Chat.ChatCommands = {
 
 		home(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
 			if (player.lastMessage) scheduleDismiss(user, room, 'home', undefined);
 		},
 
+		trainers(target, room, user) {
+			const player = Database.load(user.id);
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
+			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'trainers')}`);
+			if (player.lastMessage) scheduleDismiss(user, room, 'trainers', undefined);
+		},
+
+		gym(target, room, user) {
+			const player = Database.load(user.id);
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
+			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'gym')}`);
+			if (player.lastMessage) scheduleDismiss(user, room, 'gym', undefined);
+		},
+
+		badges: 'badgecase',
+		badgecase(target, room, user) {
+			const player = Database.load(user.id);
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
+			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'badges')}`);
+			if (player.lastMessage) scheduleDismiss(user, room, 'badges', undefined);
+		},
+
+		leaderboard: 'top',
+		top(target, room, user) {
+			const player = Database.load(user.id);
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
+			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'leaderboard')}`);
+			if (player.lastMessage) scheduleDismiss(user, room, 'leaderboard', undefined);
+		},
+
 		pc(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 			if (!player.pc) player.pc = [];
 
 			const args = target.split(' ').map(x => x.trim());
@@ -81,16 +119,15 @@ export const commands: Chat.ChatCommands = {
 			if (action === 'box') {
 				context.box = parseInt(args[1]) || 0;
 			} else if (action === 'select') {
-				const source = args[1]; // 'party' or 'pc'
+				const source = args[1];
 				const index = parseInt(args[2]);
 
-				// Calculate which box this PC index is in
 				if (source === 'pc' && !isNaN(index)) {
 					context.box = Math.floor(index / 30);
 				}
 				context.selected = { source, index };
 			} else if (action === 'release') {
-				const source = args[1]; // 'party' or 'pc'
+				const source = args[1];
 				const index = parseInt(args[2]);
 				if (source === 'party') {
 					if (player.party.length <= 1) {
@@ -109,25 +146,23 @@ export const commands: Chat.ChatCommands = {
 				const index = parseInt(args[1]);
 				if (player.party.length <= 1) {
 					player.lastMessage = "You cannot deposit your last Pokemon!";
-				} else
-					if (player.party[index]) {
-						player.lastMessage = `Deposited ${Dex.species.get(player.party[index].species).name} in Box ${Math.floor(player.pc.length / 30) + 1}!`;
-						player.pc.push(player.party[index]);
-						player.party.splice(index, 1);
-						Database.save(user.id, player);
-					}
+				} else if (player.party[index]) {
+					player.lastMessage = `Deposited ${Dex.species.get(player.party[index].species).name} in Box ${Math.floor(player.pc.length / 30) + 1}!`;
+					player.pc.push(player.party[index]);
+					player.party.splice(index, 1);
+					Database.save(user.id, player);
+				}
 			} else if (action === 'withdraw') {
 				const index = parseInt(args[1]);
 				if (player.party.length >= 6) {
 					player.lastMessage = "Your party is full!";
-				} else
-					if (player.pc[index]) {
-						player.lastMessage = `Withdrew ${Dex.species.get(player.pc[index].species).name}!`;
-						player.party.push(player.pc[index]);
-						player.pc.splice(index, 1);
-						Database.save(user.id, player);
-						context.box = Math.floor(index / 30);
-					}
+				} else if (player.pc[index]) {
+					player.lastMessage = `Withdrew ${Dex.species.get(player.pc[index].species).name}!`;
+					player.party.push(player.pc[index]);
+					player.pc.splice(index, 1);
+					Database.save(user.id, player);
+					context.box = Math.floor(index / 30);
+				}
 			}
 
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'pc', context)}`);
@@ -156,9 +191,15 @@ export const commands: Chat.ChatCommands = {
 			const starter = SGUtils.generateWild(choice, 5);
 			player.party.push(starter);
 			player.introState = 3;
+			player.location = 'pallet_town';
+
+			if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+			if (!player.pokedex.seen.includes(choice)) player.pokedex.seen.push(choice);
+			if (!player.pokedex.caught.includes(choice)) player.pokedex.caught.push(choice);
+
 			Database.save(user.id, player);
 
-			player.lastMessage = `You chose ${Dex.species.get(choice).name}! Good luck on your adventure!`;
+			player.lastMessage = `You chose ${Dex.species.get(choice).name}! Your Kanto journey begins in Pallet Town!`;
 			Database.save(user.id, player);
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
 			if (player.lastMessage) scheduleDismiss(user, room, 'home', undefined);
@@ -166,11 +207,10 @@ export const commands: Chat.ChatCommands = {
 
 		party(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			const args = target.split(' ').map(x => x.trim());
 			const action = args[0] || 'list';
-
 			const context: any = {};
 
 			if (action === 'select') {
@@ -179,7 +219,6 @@ export const commands: Chat.ChatCommands = {
 					context.selected = index;
 				}
 			} else if (action === 'move') {
-				// /sg party move [from] [to]
 				const from = parseInt(args[1]);
 				const to = parseInt(args[2]);
 
@@ -187,8 +226,6 @@ export const commands: Chat.ChatCommands = {
 					const temp = player.party[from];
 					player.party[from] = player.party[to];
 					player.party[to] = temp;
-
-					// Compact the array to remove holes if they moved to an empty slot
 					player.party = player.party.filter(p => p !== undefined);
 
 					Database.save(user.id, player);
@@ -219,11 +256,11 @@ export const commands: Chat.ChatCommands = {
 
 		bag(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			const args = target.split(' ').map(s => s.trim());
 			const action = args[0] || 'view';
-			const context: any = { category: 'Pokeballs' }; // default
+			const context: any = { category: 'Pokeballs' };
 
 			if (action === 'cat') {
 				context.category = args.slice(1).join(' ') || 'Pokeballs';
@@ -236,11 +273,9 @@ export const commands: Chat.ChatCommands = {
 
 				if (itemData && (itemData.category === 'Medicine' || itemData.category === 'TMs' || itemData.category === 'Evolution')) {
 					if (isNaN(targetIdx)) {
-						// Open party selection mode
 						context.category = itemData.category;
 						context.usingItem = item;
 					} else {
-						// Apply item
 						const p = player.party[targetIdx];
 						if (!p) return this.errorReply("Invalid Pokemon slot.");
 
@@ -260,7 +295,6 @@ export const commands: Chat.ChatCommands = {
 						} else if (itemData.category === 'TMs') {
 							const moveId = itemData.moveId;
 							if (!moveId) return this.errorReply("This TM has no associated move.");
-							// TMs are reusable in modern games, so we do NOT subtract from player.bag
 
 							player.pendingMoves = player.pendingMoves || [];
 							player.pendingMoves.push({ partyIndex: targetIdx, move: moveId });
@@ -275,7 +309,7 @@ export const commands: Chat.ChatCommands = {
 							} else {
 								const healAmt = Math.floor(p.maxHp * ((itemData.healPct || 50) / 100));
 								p.hp = healAmt;
-								p.status = ''; // Fainted status is cleared
+								p.status = '';
 								player.bag[item]--;
 								Database.save(user.id, player);
 								context.category = itemData.category;
@@ -306,7 +340,6 @@ export const commands: Chat.ChatCommands = {
 									context.category = itemData.category;
 									context.usingItem = item;
 								} else {
-									// Apply healing
 									if (canHealHp && itemData.healPct) {
 										const healAmt = Math.floor(p.maxHp * (itemData.healPct / 100));
 										p.hp = Math.min(p.maxHp, p.hp + healAmt);
@@ -362,20 +395,21 @@ export const commands: Chat.ChatCommands = {
 
 		heal(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			player.party.forEach(p => SGUtils.heal(p));
 			Database.save(user.id, player);
 
-			player.lastMessage = `Your Pokemon have been fully healed!`; Database.save(user.id, player);
+			player.lastMessage = `Nurse Joy: Your Pokémon are fighting fit! We hope to see you again!`;
+			Database.save(user.id, player);
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
 			if (player.lastMessage) scheduleDismiss(user, room, 'home', undefined);
 		},
 
-		travel: 'map',
-		map(target, room, user) {
+		travel: 'go',
+		go(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			if (!target.trim()) {
 				return this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'travel')}`);
@@ -384,17 +418,66 @@ export const commands: Chat.ChatCommands = {
 			const loc = getLocationOrNull(target);
 			if (!loc) return this.errorReply("Invalid location.");
 
-			player.location = loc.name;
+			const curLoc = getLocation(player.location);
+			if (loc.id === curLoc.id) {
+				return this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
+			}
+
+			// Ensure visitedLocations is initialized
+			if (!player.visitedLocations) {
+				player.visitedLocations = ['pallet_town'];
+			}
+			if (!player.visitedLocations.includes(curLoc.id)) {
+				player.visitedLocations.push(curLoc.id);
+			}
+
+			// Validate connection or Fast Travel
+			const conn = curLoc.connections.find(c => c.id === loc.id);
+			const majorTowns = ['pallet_town', 'viridian_city', 'pewter_city', 'cerulean_city', 'vermilion_city', 'lavender_town', 'celadon_city', 'fuchsia_city', 'saffron_city', 'cinnabar_island', 'indigo_plateau'];
+
+			if (conn) {
+				// Adjacent on-foot traversal
+				if (conn.reqKeyItem && !player.bag?.[conn.reqKeyItem] && !player.keyItems?.includes(conn.reqKeyItem)) {
+					const itemName = SGItems[conn.reqKeyItem]?.name || conn.reqKeyItem;
+					return this.errorReply(`The path to ${loc.name} is blocked! You need ${itemName}.`);
+				}
+				if (conn.reqBadge && !player.badges?.includes(conn.reqBadge)) {
+					return this.errorReply(`The path to ${loc.name} is blocked! You need the ${conn.reqBadge.toUpperCase()} Badge.`);
+				}
+			} else {
+				// Fast Travel attempt
+				const hasFly = player.badges?.includes('thunder') || player.bag?.['fly_pass'] || player.keyItems?.includes('fly_pass');
+				if (!hasFly) {
+					return this.errorReply(`Fast Travel is locked! You must follow adjacent connected paths on foot, or earn the Thunder Badge from Lt. Surge in Vermilion City to unlock the Kanto Fly Network.`);
+				}
+
+				if (curLoc.type === 'dungeon') {
+					return this.errorReply(`You cannot fly from inside a cavern or dungeon! Exit to an open route or town first.`);
+				}
+
+				if (!majorTowns.includes(loc.id)) {
+					return this.errorReply(`The Kanto Fly Network only services major towns and cities.`);
+				}
+
+				if (!player.visitedLocations.includes(loc.id)) {
+					return this.errorReply(`You haven't visited ${loc.name} yet! You must discover it on foot before you can fly there.`);
+				}
+			}
+
+			player.location = loc.id;
+			if (!player.visitedLocations.includes(loc.id)) {
+				player.visitedLocations.push(loc.id);
+			}
 			player.lastMessage = `Traveled to ${loc.name}!`;
 			Database.save(user.id, player);
-			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'travel')}`);
-			if (player.lastMessage) scheduleDismiss(user, room, 'travel', undefined);
+			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
+			if (player.lastMessage) scheduleDismiss(user, room, 'home', undefined);
 		},
 
 		mart: 'shop',
 		shop(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			const args = target.split(' ').map(s => s.trim());
 			const action = args[0] || 'view';
@@ -438,44 +521,166 @@ export const commands: Chat.ChatCommands = {
 			if (player.lastMessage) scheduleDismiss(user, room, 'mart', context);
 		},
 
-		wild(target, room, user) {
+		wild: 'explore',
+		grass: 'explore',
+		explore(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			const loc = getLocation(player.location);
-			const wildSpecies = Utils.randomElement(loc.species);
+			if (!loc.wildSpecies || loc.wildSpecies.length === 0) {
+				player.lastMessage = "There are no wild Pokémon roaming in this area.";
+				Database.save(user.id, player);
+				this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'home')}`);
+				return;
+			}
 
-			// Dynamic level scaling based on player's party
-			const partyLevels = player.party.map(p => p.level);
-			const avgLevel = partyLevels.length ? Math.round(partyLevels.reduce((a, b) => a + b, 0) / partyLevels.length) : 5;
-			const minLevel = Math.max(2, avgLevel - 3);
-			const maxLevel = Math.max(minLevel, avgLevel + 2);
-			const wildLevel = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
+			const totalWeight = loc.wildSpecies.reduce((acc, entry) => acc + (entry.weight || 10), 0);
+			let rnd = Math.random() * totalWeight;
+			let chosen = loc.wildSpecies[0];
+			for (const entry of loc.wildSpecies) {
+				const w = entry.weight || 10;
+				if (rnd < w) {
+					chosen = entry;
+					break;
+				}
+				rnd -= w;
+			}
 
-			const wildPoke = SGUtils.generateWild(wildSpecies, wildLevel);
+			const wildLevel = Math.floor(Math.random() * (chosen.maxLevel - chosen.minLevel + 1)) + chosen.minLevel;
+			const wildPoke = SGUtils.generateWild(chosen.species, wildLevel);
+
+			if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+			if (!player.pokedex.seen.includes(wildPoke.species)) {
+				player.pokedex.seen.push(wildPoke.species);
+				Database.save(user.id, player);
+			}
+
 			WildEncounters.set(user.id, wildPoke);
-
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'wild', { enemy: wildPoke })}`);
 		},
 
 		battle(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
-			const wildPoke = WildEncounters.get(user.id);
-			if (!wildPoke) return this.errorReply("There is no wild Pokemon to battle!");
-
-			WildEncounters.delete(user.id);
+			const args = target.split(' ').map(s => s.trim()).filter(Boolean);
+			const subAction = (args[0] || 'wild').toLowerCase();
 
 			const allFainted = player.party.every(p => p.hp <= 0);
-			if (allFainted) return this.errorReply("Your party has no healthy Pokemon!");
+			if (allFainted) return this.errorReply("Your party has no healthy Pokémon! Visit a Pokémon Center to heal.");
 
-			SGBattle.startWildEncounter(user, player, wildPoke, room?.roomid || '');
+			if (subAction === 'wild') {
+				const wildPoke = WildEncounters.get(user.id);
+				if (!wildPoke) return this.errorReply("There is no wild Pokémon to battle!");
+				WildEncounters.delete(user.id);
+				return SGBattle.startWildEncounter(user, player, wildPoke, room?.roomid || '');
+			}
+
+			if (subAction === 'trainer') {
+				const trainerId = toID(args[1]);
+				const trainer = getTrainer(trainerId);
+				if (!trainer) return this.errorReply(`Trainer '${args[1]}' not found.`);
+				return SGBattle.startTrainerBattle(user, player, trainer, room?.roomid || '');
+			}
+
+			// PvP Battle challenge
+			const targetUsername = args[0];
+			const targetUser = Users.get(targetUsername);
+			if (!targetUser || !targetUser.connected) return this.errorReply(`User '${targetUsername}' is not online.`);
+			if (targetUser.id === user.id) return this.errorReply("You cannot battle yourself!");
+
+			const targetPlayer = Database.load(targetUser.id);
+			if (!targetPlayer || targetPlayer.introState < 3) return this.errorReply(`${targetUser.name} hasn't started their Kanto adventure yet.`);
+
+			const targetFainted = targetPlayer.party.every(p => p.hp <= 0);
+			if (targetFainted) return this.errorReply(`${targetUser.name}'s party has no healthy Pokémon!`);
+
+			const pendingKey = `${targetUser.id}:${user.id}`;
+			if (PendingPvP.has(pendingKey)) {
+				PendingPvP.delete(pendingKey);
+				this.sendReply(`Accepted ${targetUser.name}'s PvP challenge!`);
+				targetUser.send(`${user.name} accepted your PvP challenge! Starting battle...`);
+				return SGBattle.startPvPBattle(user, targetUser, player, targetPlayer, room?.roomid || '');
+			}
+
+			const myKey = `${user.id}:${targetUser.id}`;
+			PendingPvP.set(myKey, { fromUser: user.id, toUser: targetUser.id, timestamp: Date.now() });
+
+			this.sendReply(`Challenged ${targetUser.name} to a PvP battle! They can accept with: /sg battle ${user.name}`);
+			targetUser.send(`|pm|${user.name}|${targetUser.name}|${user.name} challenged you to an SGGame PvP battle! Type /sg battle ${user.name} to accept!`);
+		},
+
+		trade(target, room, user) {
+			const player = Database.load(user.id);
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
+
+			const [targetUsername, mySlotStr, theirSlotStr] = target.split(',').map(s => s.trim());
+			if (!targetUsername) {
+				return this.errorReply("Usage: /sg trade <username>, [myPartySlot 1-6], [theirPartySlot 1-6]");
+			}
+
+			const targetUser = Users.get(targetUsername);
+			if (!targetUser || !targetUser.connected) return this.errorReply(`User '${targetUsername}' is not online.`);
+			if (targetUser.id === user.id) return this.errorReply("You cannot trade with yourself!");
+
+			const targetPlayer = Database.load(targetUser.id);
+			if (!targetPlayer || targetPlayer.introState < 3) return this.errorReply(`${targetUser.name} hasn't started their Kanto adventure yet.`);
+
+			const mySlot = parseInt(mySlotStr) - 1;
+			const theirSlot = parseInt(theirSlotStr) - 1;
+
+			if (isNaN(mySlot) || mySlot < 0 || mySlot >= player.party.length) {
+				return this.errorReply(`Specify your party Pokémon to trade (1-${player.party.length}).`);
+			}
+			if (isNaN(theirSlot) || theirSlot < 0 || theirSlot >= targetPlayer.party.length) {
+				return this.errorReply(`Specify their party Pokémon to receive (1-${targetPlayer.party.length}).`);
+			}
+
+			const myMon = player.party[mySlot];
+			const theirMon = targetPlayer.party[theirSlot];
+
+			const pendingKey = `${targetUser.id}:${user.id}`;
+			const existingTrade = PendingTrades.get(pendingKey);
+
+			if (existingTrade && existingTrade.fromSlot === theirSlot && existingTrade.toSlot === mySlot) {
+				PendingTrades.delete(pendingKey);
+
+				player.party[mySlot] = theirMon;
+				targetPlayer.party[theirSlot] = myMon;
+
+				if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+				if (!targetPlayer.pokedex) targetPlayer.pokedex = { seen: [], caught: [] };
+
+				if (!player.pokedex.caught.includes(theirMon.species)) player.pokedex.caught.push(theirMon.species);
+				if (!player.pokedex.seen.includes(theirMon.species)) player.pokedex.seen.push(theirMon.species);
+				if (!targetPlayer.pokedex.caught.includes(myMon.species)) targetPlayer.pokedex.caught.push(myMon.species);
+				if (!targetPlayer.pokedex.seen.includes(myMon.species)) targetPlayer.pokedex.seen.push(myMon.species);
+
+				Database.save(user.id, player);
+				Database.save(targetUser.id, targetPlayer);
+
+				const myMonName = Dex.species.get(myMon.species).name;
+				const theirMonName = Dex.species.get(theirMon.species).name;
+
+				this.sendReply(`Trade complete! Received ${theirMonName} in exchange for ${myMonName}.`);
+				targetUser.send(`Trade complete with ${user.name}! Received ${myMonName} in exchange for ${theirMonName}.`);
+				return;
+			}
+
+			const myKey = `${user.id}:${targetUser.id}`;
+			PendingTrades.set(myKey, { fromUser: user.id, toUser: targetUser.id, fromSlot: mySlot, toSlot: theirSlot, timestamp: Date.now() });
+
+			const myMonName = Dex.species.get(myMon.species).name;
+			const theirMonName = Dex.species.get(theirMon.species).name;
+
+			this.sendReply(`Offered to trade your ${myMonName} for ${targetUser.name}'s ${theirMonName}. Waiting for confirmation...`);
+			targetUser.send(`|pm|${user.name}|${targetUser.name}|${user.name} wants to trade their ${myMonName} for your ${theirMonName}! Type: /sg trade ${user.name}, ${theirSlot + 1}, ${mySlot + 1} to accept!`);
 		},
 
 		catch(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			const battleRoom = room;
 			if (!battleRoom?.battle) return this.errorReply("You must use this in a battle room!");
@@ -515,10 +720,16 @@ export const commands: Chat.ChatCommands = {
 					battleRoom.add(`|c|~|${Dex.species.get(wildPoke.species).name} was sent to the PC!`);
 				}
 
-				Database.save(user.id, player);
-				if (match.matchContext) { match.matchContext.caught = true; if (player.pc.includes(wildPoke)) match.matchContext.sentToPC = true; }
+				if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+				if (!player.pokedex.caught.includes(wildPoke.species)) player.pokedex.caught.push(wildPoke.species);
+				if (!player.pokedex.seen.includes(wildPoke.species)) player.pokedex.seen.push(wildPoke.species);
 
-				// Manually emit EXP_GAIN for caught pokemon
+				Database.save(user.id, player);
+				if (match.matchContext) {
+					match.matchContext.caught = true;
+					if (player.pc.includes(wildPoke)) match.matchContext.sentToPC = true;
+				}
+
 				const log = battleRoom.log?.log || [];
 				const p1Participants = new Set<string>();
 				let p2SwitchIdx = 0;
@@ -546,26 +757,26 @@ export const commands: Chat.ChatCommands = {
 
 		confirmreset(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
-
+			if (!player) return this.errorReply("You haven't started your Kanto adventure yet!");
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'confirmreset')}`);
 		},
 
 		reset(target, room, user) {
 			let player = Database.load(user.id);
-			if (!player) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			player = Database.create(user.id);
 			player.introState = 1;
 			Database.save(user.id, player);
 
-			player.lastMessage = `Your SpacialGaze progress has been completely reset.`; Database.save(user.id, player);
+			player.lastMessage = `Your Kanto adventure has been completely reset.`; Database.save(user.id, player);
 			this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'intro')}`);
 			if (player.lastMessage) scheduleDismiss(user, room, 'intro', undefined);
 		},
+
 		continue(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			if (player.pendingEvolutions && player.pendingEvolutions.length > 0) {
 				const ev = player.pendingEvolutions[0];
@@ -582,7 +793,7 @@ export const commands: Chat.ChatCommands = {
 
 		evolve(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			if (!player.pendingEvolutions || player.pendingEvolutions.length === 0) {
 				return this.parse('/sg continue');
@@ -603,6 +814,10 @@ export const commands: Chat.ChatCommands = {
 				p.maxHp = newMaxHp;
 				if (p.hp > 0) p.hp += hpDiff;
 
+				if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+				if (!player.pokedex.caught.includes(p.species)) player.pokedex.caught.push(p.species);
+				if (!player.pokedex.seen.includes(p.species)) player.pokedex.seen.push(p.species);
+
 				const evoMoves = getMovesLearnedBetween(p.species, p.level, p.level, true);
 				for (const move of evoMoves) {
 					if (!p.moves.includes(move)) {
@@ -616,7 +831,6 @@ export const commands: Chat.ChatCommands = {
 				}
 
 				Database.save(user.id, player);
-
 				this.sendReply(`|uhtmlchange|sggame|${SGRenderer.renderUI(player, 'evolved', { oldName, newName: newDex.name.toUpperCase(), species: p.species })}`);
 			} else {
 				Database.save(user.id, player);
@@ -626,7 +840,7 @@ export const commands: Chat.ChatCommands = {
 
 		learnmove(target, room, user) {
 			const player = Database.load(user.id);
-			if (!player || player.introState < 3) return this.errorReply("You haven't started your SpacialGaze adventure yet!");
+			if (!player || player.introState < 3) return this.errorReply("You haven't started your Kanto adventure yet!");
 
 			if (!player.pendingMoves || player.pendingMoves.length === 0) {
 				return this.parse('/sg continue');
@@ -655,6 +869,7 @@ export const commands: Chat.ChatCommands = {
 			return this.parse('/sg continue');
 		},
 	},
+
 	sgdev: {
 		givemoney: 'addmoney',
 		addmoney(target, room, user) {
@@ -694,6 +909,21 @@ export const commands: Chat.ChatCommands = {
 
 			this.sendReply(`Added ${amount} ${(Dex.items.get(itemId).exists ? Dex.items.get(itemId).name : itemData.name)} to ${targetUser}'s bag.`);
 		},
+		givebadge(target, room, user) {
+			const [targetUser, badge] = target.split(',').map(s => s.trim());
+			if (!targetUser || !badge) return this.errorReply("Usage: /sgdev givebadge [user], [badge]");
+
+			const targetId = toID(targetUser);
+			const player = Database.load(targetId);
+			if (!player) return this.errorReply(`No save found for user ${targetUser}.`);
+
+			const bId = toID(badge);
+			if (!player.badges.includes(bId)) {
+				player.badges.push(bId);
+				Database.save(targetId, player);
+			}
+			this.sendReply(`Awarded ${bId} badge to ${targetUser}. Total badges: ${player.badges.length}`);
+		},
 		givemon: 'addmon',
 		addmon(target, room, user) {
 			const [targetUser, pokemonId, levelStr] = target.split(',').map(s => s.trim());
@@ -710,20 +940,8 @@ export const commands: Chat.ChatCommands = {
 			if (level < 1 || level > 100) return this.errorReply("Level must be between 1 and 100.");
 
 			const moves = getMovesLearnedBetween(species.id, 0, level).slice(-4);
-			const newMon = {
-				species: species.id,
-				level,
-				exp: expForLevel(level, getExpType(species.id)),
-				hp: species.baseStats.hp, // Note: Should probably calc actual HP, but this is a dev command
-				maxHp: species.baseStats.hp,
-				status: '',
-				moves,
-			};
-
-			// Actually calc max hp properly
-			const hpBase = species.baseStats.hp;
-			newMon.maxHp = Math.floor(0.01 * (2 * hpBase + 31 + Math.floor(0.25 * 0)) * level) + level + 10;
-			newMon.hp = newMon.maxHp;
+			const newMon = SGUtils.generateWild(species.id, level);
+			newMon.moves = moves.length ? moves : ['tackle'];
 
 			if (player.party.length < 6) {
 				player.party.push(newMon);
@@ -734,59 +952,11 @@ export const commands: Chat.ChatCommands = {
 				this.sendReply(`Added ${species.name} Lv${level} to ${targetUser}'s PC.`);
 			}
 
+			if (!player.pokedex) player.pokedex = { seen: [], caught: [] };
+			if (!player.pokedex.caught.includes(species.id)) player.pokedex.caught.push(species.id);
+			if (!player.pokedex.seen.includes(species.id)) player.pokedex.seen.push(species.id);
+
 			Database.save(targetId, player);
-		},
-
-		giveexp(target, room, user) {
-			const [idxStr, expStr] = target.split(',').map(s => s.trim());
-			const player = Database.load(user.id);
-			if (!player) return this.errorReply("No save found.");
-
-			const targetIdx = parseInt(idxStr) - 1;
-			if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= player.party.length) return this.errorReply("Invalid party index (use 1-6).");
-
-			const expAmount = parseInt(expStr);
-			if (isNaN(expAmount) || expAmount <= 0) return this.errorReply("Invalid EXP amount.");
-
-			const p = player.party[targetIdx];
-			const oldLevel = p.level;
-			const pendingMovesOut: string[] = [];
-			const msgs = SGUtils.giveExp(p, expAmount, pendingMovesOut);
-
-			if (pendingMovesOut.length > 0) {
-				if (!player.pendingMoves) player.pendingMoves = [];
-				for (const move of pendingMovesOut) {
-					player.pendingMoves.push({ partyIndex: targetIdx, move });
-				}
-				msgs.push(`(Move learning pending! Use /sg continue)`);
-			}
-
-			const leveledUp = p.level > oldLevel;
-			if (leveledUp) {
-				const evo = getLevelUpEvo(p.species);
-				if (evo && p.level >= evo.evoLevel && p.item !== 'eviolite' && p.item !== 'everstone') {
-					if (!player.pendingEvolutions) player.pendingEvolutions = [];
-					player.pendingEvolutions.push({ partyIndex: targetIdx, evoSpecies: evo.evoTo });
-					msgs.push(`(Evolution pending! Use /sg continue)`);
-				}
-			}
-
-			Database.save(user.id, player);
-			player.lastMessage = `${msgs.join(' ')}`; Database.save(user.id, player);
-			return this.parse('/sg continue');
-		},
-		giveitem(target, room, user) {
-			const [idxStr, item] = target.split(',').map(s => s.trim());
-			const player = Database.load(user.id);
-			if (!player) return this.errorReply("No save found.");
-
-			const targetIdx = parseInt(idxStr) - 1;
-			if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= player.party.length) return this.errorReply("Invalid party index (use 1-6).");
-
-			player.party[targetIdx].item = toID(item);
-			Database.save(user.id, player);
-			player.lastMessage = `Gave ${player.party[targetIdx].species} a ${item}.`; Database.save(user.id, player);
-			return this.parse('/sg party');
 		},
 	},
 };
@@ -794,18 +964,17 @@ export const commands: Chat.ChatCommands = {
 export const handlers: Chat.Handlers = {
 	onBattleEnd(battle, winner, players) {
 		const match = UtilityBattleResolver.activeMatches.get(battle.roomid);
-		if (!match) return; // not a utility match
+		if (!match) return;
 
 		UtilityBattleResolver.activeMatches.delete(battle.roomid);
 		const botUser = Users.get(match.botUserId);
-		if (botUser) UtilityBattleResolver.destroyBotUser(botUser);
+		if (botUser && !match.matchContext?.isPvP) UtilityBattleResolver.destroyBotUser(botUser);
 
 		const player = Database.load(match.userId);
-		if (!player) return; // player not found?
+		if (!player) return;
 
 		const room = Rooms.get(battle.roomid);
 		const logLines: string[] = room?.log?.log ?? [];
-		require("fs").writeFileSync("last_battle_log.txt", logLines.join("\n"));
 
 		const state = UtilityBattleResolver.parseBattleState(logLines, player.party);
 
@@ -827,6 +996,7 @@ export const handlers: Chat.Handlers = {
 		const leveledUpIndices = new Set<number>();
 		const expMessages = logLines.filter(l => l.startsWith('|-message|EXP_GAIN|'));
 		const pendingMoves = [];
+
 		for (const expMsg of expMessages) {
 			const parts = expMsg.split('|');
 			const defeatedSpecies = parts[3];
@@ -845,7 +1015,7 @@ export const handlers: Chat.Handlers = {
 						if (actualExp > 0) {
 							const oldLevel = p.level;
 							const pendingMovesOut: string[] = [];
-							const msgs = SGUtils.giveExp(p, actualExp, pendingMovesOut);
+							const msgs = SGUtils.giveExp(p, actualExp, player.badges.length, pendingMovesOut);
 
 							for (const move of pendingMovesOut) pendingMoves.push({ partyIndex: i, move });
 
@@ -868,7 +1038,7 @@ export const handlers: Chat.Handlers = {
 		for (const idx of Array.from(leveledUpIndices)) {
 			const p = player.party[idx];
 			if (p.item === 'eviolite' || p.item === 'everstone') continue;
-			const evo = getLevelUpEvo(p.species); // We pass default happiness of 70 inside getLevelUpEvo
+			const evo = getLevelUpEvo(p.species);
 			if (evo && p.level >= evo.evoLevel) {
 				pendingEvolutions.push({ partyIndex: idx, evoSpecies: evo.evoTo });
 			}
@@ -880,15 +1050,21 @@ export const handlers: Chat.Handlers = {
 		Database.save(player.userid, player);
 		if (room) room.update();
 
-		if (match.matchContext && match.matchContext.type === 'wild') {
+		const matchType = match.matchContext?.type;
+
+		if (matchType === 'wild') {
 			const enemyPoke = match.matchContext.wildPoke;
-			if (match.matchContext.caught || (winner && toID(winner) === match.userId)) {
+			const playerWon = match.matchContext.caught || (winner && toID(winner) === match.userId);
+
+			if (playerWon) {
+				if (!player.stats) player.stats = { wildBattlesWon: 0, trainersBeaten: 0, pvpWins: 0, pvpLosses: 0 };
+				player.stats.wildBattlesWon++;
+
 				const defeatedLevel = enemyPoke ? enemyPoke.level : 5;
 				const moneyEarned = Math.max(50, defeatedLevel * 40);
 				player.money = (player.money || 0) + moneyEarned;
 				battleReport.push(`Earned <strong style="color:#2e6b27;">$${moneyEarned}</strong>!`);
 			} else {
-				// Defeated / blacked out
 				const penalty = Math.min(player.money || 0, Math.max(50, Math.floor((player.money || 0) * 0.1)));
 				player.money = Math.max(0, (player.money || 0) - penalty);
 			}
@@ -900,17 +1076,97 @@ export const handlers: Chat.Handlers = {
 				let screen = 'defeat';
 				if (match.matchContext.caught) {
 					screen = 'caught';
-				} else if (winner && toID(winner) === match.userId) {
+				} else if (playerWon) {
 					screen = 'victory';
 				}
 
 				const ui = SGRenderer.renderUI(player, screen, match.matchContext);
 				const sRoom = Rooms.get(match.matchContext.sourceRoomId);
-				if (sRoom) {
-					uobj.sendTo(sRoom, `|uhtmlchange|sggame|${ui}`);
-				} else {
-					uobj.send(`|uhtmlchange|sggame|${ui}`);
+				if (sRoom) uobj.sendTo(sRoom, `|uhtmlchange|sggame|${ui}`);
+				else uobj.send(`|uhtmlchange|sggame|${ui}`);
+			}
+		} else if (matchType === 'trainer') {
+			const trainer = match.matchContext.trainer;
+			const playerWon = (winner && toID(winner) === match.userId);
+
+			if (playerWon) {
+				if (!player.stats) player.stats = { wildBattlesWon: 0, trainersBeaten: 0, pvpWins: 0, pvpLosses: 0 };
+				player.stats.trainersBeaten++;
+
+				if (!player.defeatedTrainers) player.defeatedTrainers = [];
+				if (!player.defeatedTrainers.includes(trainer.id)) {
+					player.defeatedTrainers.push(trainer.id);
 				}
+
+				player.money = (player.money || 0) + trainer.rewardMoney;
+				battleReport.push(`Defeated ${trainer.title} ${trainer.name}! Won <strong style="color:#2e6b27;">$${trainer.rewardMoney}</strong>!`);
+
+				// Gym Leader badge & TM rewards
+				if (trainer.isGymLeader && trainer.rewardBadge) {
+					if (!player.badges.includes(trainer.rewardBadge)) {
+						player.badges.push(trainer.rewardBadge);
+						battleReport.push(`Awarded the official <strong style="color:#f57f17;">${trainer.rewardBadge.toUpperCase()} BADGE</strong>!`);
+						battleReport.push(`Soft level cap raised to <strong style="color:#2e7d32;">Lv${getLevelCap(player.badges.length)}</strong>!`);
+
+						// Unlock Key Items per badge milestones
+						if (trainer.rewardBadge === 'boulder') {
+							player.bag['tree_shears'] = 1;
+							battleReport.push(`Received <strong style="color:#1565c0;">Tree Shears</strong>! Small trees can now be trimmed!`);
+						} else if (trainer.rewardBadge === 'cascade') {
+							player.bag['bicycle'] = 1;
+							battleReport.push(`Received <strong style="color:#1565c0;">Bicycle</strong>! Travel speed increased!`);
+						} else if (trainer.rewardBadge === 'thunder') {
+							player.bag['fly_pass'] = 1;
+							battleReport.push(`Received <strong style="color:#1565c0;">Fly Network Pass</strong>! You can now fast travel to previously discovered towns!`);
+						} else if (trainer.rewardBadge === 'soul') {
+							player.bag['surfboard'] = 1;
+							battleReport.push(`Received <strong style="color:#1565c0;">Surfboard</strong>! Waterways can now be traversed!`);
+						}
+
+						if (trainer.rewardItem) {
+							player.bag[trainer.rewardItem] = 1;
+							const itemName = SGItems[trainer.rewardItem]?.name || trainer.rewardItem;
+							battleReport.push(`Received <strong style="color:#7b1fa2;">${itemName}</strong>!`);
+						}
+					}
+				}
+			} else {
+				const penalty = Math.min(player.money || 0, Math.max(50, Math.floor((player.money || 0) * 0.1)));
+				player.money = Math.max(0, (player.money || 0) - penalty);
+			}
+
+			Database.save(player.userid, player);
+
+			match.matchContext.battleReport = battleReport;
+			const uobj = Users.get(match.userId);
+			if (uobj) {
+				const screen = playerWon ? 'trainer_victory' : 'defeat';
+				const ui = SGRenderer.renderUI(player, screen, match.matchContext);
+				const sRoom = Rooms.get(match.matchContext.sourceRoomId);
+				if (sRoom) uobj.sendTo(sRoom, `|uhtmlchange|sggame|${ui}`);
+				else uobj.send(`|uhtmlchange|sggame|${ui}`);
+			}
+		} else if (matchType === 'pvp') {
+			const p1User = match.matchContext.p1User;
+			const p2User = match.matchContext.p2User;
+
+			const p1Player = Database.load(p1User);
+			const p2Player = Database.load(p2User);
+
+			if (p1Player && p2Player) {
+				if (!p1Player.stats) p1Player.stats = { wildBattlesWon: 0, trainersBeaten: 0, pvpWins: 0, pvpLosses: 0 };
+				if (!p2Player.stats) p2Player.stats = { wildBattlesWon: 0, trainersBeaten: 0, pvpWins: 0, pvpLosses: 0 };
+
+				if (winner && toID(winner) === p1User) {
+					p1Player.stats.pvpWins++;
+					p2Player.stats.pvpLosses++;
+				} else if (winner && toID(winner) === p2User) {
+					p2Player.stats.pvpWins++;
+					p1Player.stats.pvpLosses++;
+				}
+
+				Database.save(p1User, p1Player);
+				Database.save(p2User, p2Player);
 			}
 		}
 	},

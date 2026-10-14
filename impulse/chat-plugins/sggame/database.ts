@@ -18,16 +18,53 @@ export const Database = {
 			const data = FS(`${DIR}/${userid}.json`).readSync();
 			const player = JSON.parse(data) as SGPlayer;
 			if (player.introState === undefined) {
-				player.introState = player.party.length > 0 ? 3 : 0;
+				player.introState = player.party?.length > 0 ? 3 : 0;
 			}
 			if (player.money === undefined) {
 				player.money = 1000;
 			}
-			if (player.location === 'Route 1' || !player.location) {
-				player.location = 'Route 1 (Kanto)';
+			if (!player.location || player.location === 'Route 1 (Kanto)' || player.location === 'Route 1') {
+				player.location = 'pallet_town';
 			}
-			if (player.bag && player.bag['expall'] === undefined) {
+			if (!player.party) player.party = [];
+			if (!player.pc) player.pc = [];
+			if (!player.bag) player.bag = {};
+			if (player.bag['expall'] === undefined) {
 				player.bag['expall'] = 1;
+			}
+			if (!player.badges) player.badges = [];
+			if (!player.defeatedTrainers) player.defeatedTrainers = [];
+			if (!player.keyItems) player.keyItems = [];
+			if (!player.pokedex) {
+				player.pokedex = { seen: [], caught: [] };
+			}
+			if (!player.stats) {
+				player.stats = { wildBattlesWon: 0, trainersBeaten: 0, pvpWins: 0, pvpLosses: 0 };
+			}
+			if (!player.visitedLocations) {
+				player.visitedLocations = ['pallet_town'];
+				if (player.location && !player.visitedLocations.includes(player.location)) {
+					player.visitedLocations.push(player.location);
+				}
+				const badgeTownMap: Record<string, string> = {
+					boulder: 'pewter_city',
+					cascade: 'cerulean_city',
+					thunder: 'vermilion_city',
+					rainbow: 'celadon_city',
+					soul: 'fuchsia_city',
+					marsh: 'saffron_city',
+					volcano: 'cinnabar_island',
+					earth: 'viridian_city',
+				};
+				for (const b of player.badges || []) {
+					const town = badgeTownMap[b];
+					if (town && !player.visitedLocations.includes(town)) {
+						player.visitedLocations.push(town);
+					}
+				}
+			}
+			if (player.badges?.includes('thunder') && !player.bag['fly_pass']) {
+				player.bag['fly_pass'] = 1;
 			}
 
 			// Enforce max item quantities
@@ -66,15 +103,45 @@ export const Database = {
 			party: [],
 			pc: [],
 			bag: {
-				pokeball: 5,
+				pokeball: 10,
 				potion: 5,
 				expall: 1,
 			},
 			money: 1000,
-			location: 'Route 1 (Kanto)',
+			location: 'pallet_town',
 			introState: 0,
+			badges: [],
+			defeatedTrainers: [],
+			keyItems: [],
+			visitedLocations: ['pallet_town'],
+			pokedex: {
+				seen: [],
+				caught: [],
+			},
+			stats: {
+				wildBattlesWon: 0,
+				trainersBeaten: 0,
+				pvpWins: 0,
+				pvpLosses: 0,
+			},
 		};
 		this.save(userid, player);
 		return player;
+	},
+	getAllPlayers(): SGPlayer[] {
+		const players: SGPlayer[] = [];
+		try {
+			const files = FS(DIR).readdirSync();
+			for (const file of files) {
+				if (file.endsWith('.json')) {
+					try {
+						const raw = FS(`${DIR}/${file}`).readSync();
+						const p = JSON.parse(raw) as SGPlayer;
+						if (p && p.userid) players.push(p);
+					} catch (e) {}
+				}
+			}
+		} catch (e) {}
+		return players;
 	},
 };
