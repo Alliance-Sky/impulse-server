@@ -212,6 +212,7 @@ export const Scripts: ModdedBattleScriptsData = {
 
 				if (!lockedMove && move.id !== pokemon.side.lastEnemySelectedMove) {
 					this.battle.hint("Desync Clause Mod activated!");
+					this.battle.debug("Desync Clause Mod", move.id, pokemon.side.lastEnemySelectedMove);
 					this.battle.hint(
 						"In Gen 1, if both players would see the same Pokémon using different moves, " +
 						"the Pokemon defaults to the move shown from the perspective of the player controlling that Pokémon."
@@ -326,7 +327,7 @@ export const Scripts: ModdedBattleScriptsData = {
 				return false;
 			}
 
-			if (sourceEffect) attrs += `|[from] ${this.battle.dex.conditions.get(sourceEffect).name}`;
+			if (sourceEffect) attrs += `|[from] ${sourceEffect.fullname}`;
 			this.battle.addMove('move', pokemon, move.name, `${target!}${attrs}`);
 
 			if (!this.battle.singleEvent('Try', move, null, pokemon, target, move)) {

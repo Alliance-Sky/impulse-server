@@ -9279,7 +9279,7 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 			) {
 				source.addVolatile("rolloutstorage");
 				source.volatiles["rolloutstorage"].contactHitCount =
-				iceballData.contactHitCount;
+					iceballData.contactHitCount;
 			}
 		},
 
@@ -18712,7 +18712,7 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 		priority: 0,
 		flags: { protect: 1, mirror: 1, metronome: 1 },
 		onTryImmunity(target, source) {
-			return target.hasType(source.getTypes());
+			return target.hasType(source.getTypes().filter(type => type !== '???'));
 		},
 		target: "allAdjacent",
 		type: "Psychic",
@@ -20922,9 +20922,15 @@ export const Moves: import('../sim/dex-moves').MoveDataTable = {
 			onStart(pokemon, source) {
 				this.effectState.hp = source.maxhp / 2;
 				this.effectState.startingTurn = this.getOverflowedTurnCount();
-				if (this.effectState.startingTurn === 255) {
+				if (this.gen >= 8 && this.effectState.startingTurn === 255) {
 					this.hint(`In Gen 8+, Wish will never resolve when used on the ${this.turn}th turn.`);
 				}
+			},
+			onRestart() {
+				if (this.gen >= 8 && this.effectState.startingTurn === 255) {
+					this.hint(`A previous Wish is stuck on this slot and will never resolve.`);
+				}
+				return false;
 			},
 			onResidualOrder: 4,
 			onResidual(target: Pokemon) {

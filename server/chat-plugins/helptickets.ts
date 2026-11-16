@@ -1018,6 +1018,7 @@ const ticketTitles: { [k: string]: string } = {
 	ipappeal: TLkey`IP-Appeal`,
 	roomhelp: TLkey`Public Room Assistance Request`,
 	registerbot: TLkey`Bot Registration Request`,
+	notbot: TLkey`Bot Status Dispute`,
 	other: TLkey`Other`,
 };
 const ticketPages: { [k: string]: string } = {
@@ -1049,6 +1050,7 @@ const ticketPages: { [k: string]: string } = {
 	password: TLkey`I lost my password`,
 	roomhelp: TLkey`I need global staff to help watch a public room`,
 	registerbot: TLkey`I want to register my bot`,
+	notbot: TLkey`I've been wrongly flagged as a bot`,
 	other: TLkey`Other`,
 
 	confirmpmharassment: TLkey`Report harassment in a private message (PM)`,
@@ -1059,6 +1061,7 @@ const ticketPages: { [k: string]: string } = {
 	confirmipappeal: TLkey`Appeal IP lock`,
 	confirmroomhelp: TLkey`Call a Global Staff member to help`,
 	confirmregisterbot: TLkey`I want to register my bot`,
+	confirmnotbot: TLkey`I've been wrongly flagged as a bot`,
 	confirmother: TLkey`Call a Global Staff member`,
 };
 const cheatingScenarios = [
@@ -1439,8 +1442,11 @@ export const textTickets: { [k: string]: TextTicketInfo } = {
 	},
 	registerbot: {
 		title: "What is the username of the bot you wish to register?",
-		contextMessage: "What is a username we can contact you as the bot owner at?",
-		checker(input, context, pageId, user) {
+		contextMessage: (
+			"What is a Pokemon Showdown username we can contact you as the bot owner at? " +
+			"It is required, and cannot be the same as the bot's username."
+		),
+		async checker(input, context, pageId, user) {
 			input = toID(input);
 			context = toID(context);
 			if (!input || !context || input.length > 18 || context.length > 18) {
@@ -1451,6 +1457,16 @@ export const textTickets: { [k: string]: TextTicketInfo } = {
 			}
 			if (user.locked || user.semilocked || user.namelocked) {
 				return ['Punished users may not register bots.'];
+			}
+			const exists = (userid: string) => Net(`https://${Config.routes.root}/users/${userid}.json`).get().catch(() => false);
+			if (input === context) {
+				return ['Bot username and owner username must not be the same.'];
+			}
+			if (!(await exists(input))) {
+				return ['Bot username must first be registered (given a password) with /register.'];
+			}
+			if (!(await exists(context))) {
+				return ['Owner username must first be registered (given a password) with /register.'];
 			}
 			return true;
 		},
@@ -1463,6 +1479,22 @@ export const textTickets: { [k: string]: TextTicketInfo } = {
 			buf += `Confirmed they're indeed a bot? Confirmed the user is well-behaved? `;
 			buf += `<button name="send" value="/setbot ${owner},${bot}">Register</button><br />`;
 			return buf;
+		},
+	},
+	notbot: {
+		title: "Do you feel you've wrongfully been flagged as a bot?",
+		contextMessage: "Please tell us a bit about what you were doing when this happened.",
+		checker(input, context, pageid, user) {
+			if (!user.isUserBot) {
+				return ['You are not flagged as a bot.'];
+			}
+			return true;
+		},
+		getReviewDisplay(ticket) {
+			return (
+				`Confirmed they aren't a bot? ` +
+				`<button class="button" name="send" value="/notbot ${ticket.userid}">Remove status</button><br />`
+			);
 		},
 	},
 };
@@ -1716,6 +1748,7 @@ export const pages: Chat.PageTable = {
 					buf += `<p><Button>password</Button></p>`;
 					if (user.trusted || isStaff) buf += `<p><Button>roomhelp</Button></p>`;
 					buf += `<p><Button>registerbot</Button></p>`;
+					buf += `<p><Button>notbot</Button></p>`;
 					buf += `<p><Button>other</Button></p>`;
 					break;
 				case 'password':
@@ -1728,6 +1761,10 @@ export const pages: Chat.PageTable = {
 				case 'registerbot':
 					buf += `<p>${this.TL`If you are a bot developer, and would like to register your bot on the ladder, please fill out the form below and we'll be happy to assist!`}</p>`;
 					buf += `<p><Button>confirmregisterbot</Button></p>`;
+					break;
+				case 'notbot':
+					buf += `<p>${this.TL`If you are not a bot, and believe you have been wrongly flagged as such, please fill out this form to dispute this status.`}</p>`;
+					buf += `<p><Button>confirmnotbot</Button></p>`;
 					break;
 				case 'other':
 					buf += `<p>${this.TL`If your issue is not handled above, click the button below to talk to a global staff member. Please be ready to explain the situation.`}</p>`;
@@ -2322,10 +2359,6 @@ export const commands: Chat.ChatCommands = {
 				this.popupReply(`You already have a pending ticket, please wait.`);
 				return this.parse(`/join help-${ticket.userid}`);
 			}
-			if (Monitor.countTickets(user.latestIp)) {
-				const maxTickets = Punishments.isSharedIp(user.latestIp) ? `50` : `5`;
-				return this.popupReply(this.TL`Due to high load, you are limited to creating ${maxTickets} tickets every hour.`);
-			}
 			let [
 				ticketType, reportTargetType, reportTarget, text, contextString,
 			] = Utils.splitFirst(target, '|', 4).map(s => s.trim());
@@ -2380,6 +2413,10 @@ export const commands: Chat.ChatCommands = {
 				if (Array.isArray(validation) && validation.length) {
 					this.parse(`/join view-${pageId}`);
 					return this.popupReply(`|html|` + validation.join('<br />'));
+				}
+				if (Monitor.countTickets(user.latestIp)) {
+					const maxTickets = Punishments.isSharedIp(user.latestIp) ? `50` : `5`;
+					return this.popupReply(this.TL`Due to high load, you are limited to creating ${maxTickets} tickets every hour.`);
 				}
 				ticket.text = [text, contextString];
 				ticket.active = true;

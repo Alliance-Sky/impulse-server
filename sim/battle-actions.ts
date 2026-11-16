@@ -513,7 +513,11 @@ export class BattleActions {
 
 		let movename = move.name;
 		if (move.id === 'hiddenpower') movename = 'Hidden Power';
-		if (sourceEffect) attrs += `|[from] ${sourceEffect.fullname}`;
+		if (sourceEffect) {
+			// `[from] move:` tells the client that there was an earlier `|move|` message
+			// which isn't true for Pursuit, and would bug PP tracking
+			attrs += `|[from] ${sourceEffect.id === 'pursuit' ? 'Pursuit' : sourceEffect.fullname}`;
+		}
 		if (zMove && move.isZ === true) {
 			attrs = `|[anim]${movename}${attrs}`;
 			movename = `Z-${movename}`;
@@ -1037,7 +1041,7 @@ export class BattleActions {
 			this.battle.add('-hitcount', targets[0], hit - 1);
 		}
 
-		if (move.totalDamage) {
+		if (move.totalDamage || (move.struggleRecoil && damage.some((val, i) => val === 0 && !!targetsCopy[i]))) {
 			this.applyRecoilDamage(move.totalDamage, move, pokemon);
 		}
 

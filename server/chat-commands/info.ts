@@ -113,10 +113,12 @@ export const commands: Chat.ChatCommands = {
 	whoare: 'whois',
 	altsnorecurse: 'whois',
 	/* profile: 'whois', */
+	battles: 'whois',
 	whois(target, room, user, connection, cmd) {
 		if (room?.roomid === 'staff' && !this.runBroadcast()) return;
 		const targetUser = this.getUserOrSelf(target, { exactName: user.tempGroup === ' ' });
-		const showAll = (cmd === 'ip' || cmd === 'whoare' || cmd === 'alt' || cmd === 'alts' || cmd === 'altsnorecurse');
+		const showAllVariants = ['ip', 'whoare', 'alt', 'alts', 'altsnorecurse', 'battles'];
+		const showAll = showAllVariants.includes(cmd);
 		const showRecursiveAlts = showAll && (cmd !== 'altsnorecurse');
 		if (!targetUser) {
 			if (showAll) return this.parse('/offlinewhois ' + target);
@@ -405,7 +407,7 @@ export const commands: Chat.ChatCommands = {
 		if (!user.can('alts') && !atLeastOne) {
 			const hasJurisdiction = room && user.can('mute', null, room) && Punishments.roomUserids.nestedHas(room.roomid, userid);
 			if (!hasJurisdiction) {
-				throw new Chat.ErrorMessage("/checkpunishment - User not found.");
+				throw new Chat.ErrorMessage("/checkpunishment - You have no jurisdiction over this user.");
 			}
 		}
 
@@ -579,7 +581,6 @@ export const commands: Chat.ChatCommands = {
 		}
 		this.errorReply(`You're using a custom client that doesn't support the ignore command.`);
 	},
-	ignorehelp: [`/ignore [user] - Ignore the given [user].`],
 
 	/*********************************************************
 	 * Data Search Dex
