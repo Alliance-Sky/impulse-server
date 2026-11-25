@@ -330,6 +330,15 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		ruleset: ['Flat Rules', 'VGC Timer', 'Force Open Team Sheets', 'Best of = 3'],
 	},
 	{
+		name: "[Gen 9 Champions] Roster Ranch Rumble",
+		desc: `Randomized teams of ten Pok&eacute;mon using rental sets from Pok&eacute;mon Champions. Choose four of them at Team Preview.`,
+		mod: 'champions',
+		gameType: 'doubles',
+		team: 'randomRRR',
+		bestOfDefault: true,
+		ruleset: ['Team Preview', 'Cancel Mod', 'Max Team Size = 10', 'Picked Team Size = 4'],
+	},
+	{
 		name: "[Gen 9 Champions] Custom Game",
 		mod: 'champions',
 		searchShow: false,
@@ -437,7 +446,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 			'Chinchou', 'Elekid', 'Foongus', 'Glimmet', 'Gothita', 'Growlithe-Hisui', 'Impidimp', 'Mareanie', 'Mienfoo', 'Mudbray',
 			'Sandshrew-Alola', 'Tinkatink', 'Toedscool',
 			// LC UUBL
-			'Deerling', 'Minccino', 'Wingull', 'Light Clay',
+			'Deerling', 'Minccino', 'Stunky', 'Wingull', 'Light Clay',
 		],
 	},
 	{
@@ -712,7 +721,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 			'Basculin-White-Striped', 'Duraludon', 'Kyogre', 'Miraidon', 'Scyther', 'Sneasel', 'Sneasel-Hisui', 'Ursaring', 'Arena Trap',
 			'Huge Power', 'Pure Power', 'Shadow Tag', 'Moody', 'King\'s Rock', 'Razor Fang', 'Baton Pass', 'Shed Tail',
 		],
-		restricted: ['Espathra', 'Frosmoth', 'Gallade', 'Lilligant-Hisui', 'Lunala', 'Solgaleo'],
+		restricted: ['Cloyster', 'Espathra', 'Frosmoth', 'Gallade', 'Lilligant-Hisui', 'Lunala', 'Solgaleo'],
 		onValidateTeam(team) {
 			const nums = new Set<number>();
 			for (const set of team) {
@@ -966,7 +975,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 			'Endless Battle Clause', 'Hackmons Forme Legality', 'Species Reveal Clause', 'Terastal Clause',
 		],
 		banlist: [
-			'Calyrex-Shadow', 'Deoxys-Attack', 'Gengar-Mega', 'Mewtwo-Mega-X', 'Mewtwo-Mega-Y', 'Rayquaza-Mega', 'Regigigas', 'Shedinja', 'Slaking', 'Arena Trap',
+			'Calyrex-Shadow', 'Deoxys-Attack', 'Diancie-Mega', 'Gengar-Mega', 'Mewtwo-Mega-X', 'Mewtwo-Mega-Y', 'Rayquaza-Mega', 'Regigigas', 'Shedinja', 'Slaking', 'Arena Trap',
 			'Contrary', 'Gorilla Tactics', 'Hadron Engine', 'Huge Power', 'Illusion', 'Innards Out', 'Libero', 'Liquid Ooze', 'Magnet Pull', 'Moody', 'Neutralizing Gas',
 			'Orichalcum Pulse', 'Parental Bond', 'Poison Heal', 'Protean', 'Pure Power', 'Shadow Tag', 'Stakeout', 'Water Bubble', 'Wonder Guard', 'King\'s Rock',
 			'Razor Fang', 'Baton Pass', 'Belly Drum', 'Ceaseless Edge', 'Clangorous Soul', 'Dire Claw', 'Electro Shot', 'Fillet Away', 'Imprison', 'Last Respects',
@@ -4051,8 +4060,8 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		mod: 'gen9',
 		searchShow: false,
 		ruleset: ['[Gen 9] National Dex', 'Same Letter Clause'],
-		banlist: ['Light Clay'],
-		unbanlist: ['Ogerpon-Hearthflame', 'Ursaluna-Bloodmoon', 'Walking Wake', 'Yveltal', 'Urshifu', 'Naganadel'],
+		banlist: ['Light Clay', 'Tapu Lele'],
+		unbanlist: ['Naganadel', 'Ogerpon-Hearthflame', 'Ursaluna-Bloodmoon', 'Urshifu', 'Walking Wake', 'Yveltal'],
 	},
 	{
 		name: "[Gen 9] National Dex STABmons",
@@ -4340,16 +4349,6 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 				if (!pokemon.m.abils) pokemon.m.abils = [];
 				if (!pokemon.m.abils.includes(effect)) pokemon.m.abils.push(effect);
 			}
-		},
-	},
-	{
-		name: "[Gen 9] Live Patch Battles Ver 1.0.0",
-		threads: [`&bullet; <a href="https://twitter.com/pokemonpatches">https://twitter.com/pokemonpatches</a>`],
-		mod: 'afd',
-		team: 'random',
-		ruleset: ['[Gen 9] Random Battle'],
-		onBegin() {
-			this.add(`raw|<div class="broadcast-blue"><b><a href="https://twitter.com/pokemonpatches">Check out the patch notes!</a></b></div>`);
 		},
 	},
 	{
