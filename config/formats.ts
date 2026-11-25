@@ -562,60 +562,6 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		searchShow: false,
 		itemClauseDefault: true,
 		ruleset: ['Standard Draft', 'NatDex Mod'],
-		checkCanLearn(move, species, setSources, set) {
-			if (!this.ruleTable.has('natdexmod')) return this.checkCanLearn(move, species, setSources, set);
-			const TeamValidator: typeof import('../sim/team-validator').TeamValidator =
-				require('../sim/team-validator').TeamValidator;
-			const natDex = TeamValidator.get(`gen${this.gen}nationaldexag`)
-				.checkCanLearn(move, species, this.allSources(species), set);
-			if (typeof natDex === 'string') return this.checkCanLearn(move, species, setSources, set);
-			return natDex;
-		},
-		onValidateSet(set) {
-			if (!this.ruleTable.has('natdexmod')) return;
-			const species = this.dex.species.get(set.species);
-			let tier = species.tier;
-			if (tier === 'Illegal') tier = this.dex.mod('gen9').species.get(species.name).natDexTier;
-			if (tier === 'Illegal') {
-				if (this.ruleTable.has(`+pokemon:${species.id}`)) return;
-				return [`${set.name || set.species} does not exist in the National Dex.`];
-			}
-			const requireObtainable = this.ruleTable.has('obtainable');
-			if (requireObtainable) {
-				if (species.natDexTier === "Unreleased") {
-					const basePokemon = this.toID(species.baseSpecies);
-					if (this.ruleTable.has(`+pokemon:${species.id}`) || this.ruleTable.has(`+basepokemon:${basePokemon}`) ||
-						this.ruleTable.has('+pokemontag:unobtainable')) {
-						return;
-					}
-					return [`${set.name || set.species} does not exist in the National Dex.`];
-				}
-				for (const moveid of set.moves) {
-					const move = this.dex.moves.get(moveid);
-					if (move.isNonstandard === 'Unobtainable' && move.gen === this.dex.gen) {
-						if (this.ruleTable.has(`+move:${move.id}`)) continue;
-						const problem = `${set.name}'s move ${move.name} does not exist in the National Dex.`;
-						if (this.ruleTable.has('omunobtainablemoves')) {
-							const { outOfBattleSpecies } = this.getValidationSpecies(set);
-							if (!this.omCheckCanLearn(move, outOfBattleSpecies, this.allSources(outOfBattleSpecies), set, problem)) continue;
-						}
-						return [problem];
-					}
-				}
-			}
-			// Any item that was legal in Gen 7 (Normal Gem for example) should be usable
-			if (!set.item) return;
-			let item = this.dex.items.get(set.item);
-			let gen = this.dex.gen;
-			while (item.isNonstandard && gen >= 7) {
-				item = this.dex.forGen(gen).items.get(item.id);
-				gen--;
-			}
-			if (requireObtainable && item.isNonstandard) {
-				if (this.ruleTable.has(`+item:${item.id}`)) return;
-				return [`${set.name}'s item ${item.name} does not exist in Gen ${this.dex.gen}.`];
-			}
-		},
 	},
 	{
 		name: "[Gen 8] Draft",
@@ -845,9 +791,9 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		mod: 'gen9',
 		ruleset: ['Standard OMs', '!Obtainable Formes', '!Obtainable Abilities', 'Convergence Legality', 'Sleep Moves Clause'],
 		banlist: [
-			'Arceus-Dark', 'Calyrex-Shadow', 'Cramorant-Gorging', 'Ditto', 'Manaphy', 'Ogerpon-Cornerstone-Tera', 'Ogerpon-Hearthflame-Tera', 'Ogerpon-Teal-Tera',
-			'Ogerpon-Wellspring-Tera', 'Smeargle', 'Ursaring', 'Zacian-Crowned', 'Arena Trap', 'Comatose', 'Moody', 'Pure Power', 'Shadow Tag', 'Baton Pass',
-			'Belly Drum', 'Last Respects', 'Population Bomb', 'Rising Voltage', 'Shell Smash', 'King’s Rock', 'Razor Fang',
+			'Arceus-Dark', 'Calyrex-Shadow', 'Cramorant-Gorging', 'Ditto', 'Komala', 'Miraidon', 'Manaphy', 'Ogerpon-Cornerstone-Tera', 'Ogerpon-Hearthflame-Tera', 'Ogerpon-Teal-Tera',
+			'Ogerpon-Wellspring-Tera', 'Regidrago', 'Regigigas', 'Slaking', 'Smeargle', 'Zacian-Crowned', 'Arena Trap', 'Moody', 'Pure Power', 'Shadow Tag', 'Speed Boost', 'Baton Pass',
+			'Belly Drum', 'Last Respects', 'No Retreat', 'Population Bomb', 'Power Trip', 'Shell Smash', 'Stored Power', 'King’s Rock', 'Razor Fang',
 		],
 		unbanlist: [
 			'Abomasnow-Mega', 'Absol-Mega', 'Absol-Mega-Z', 'Aerodactyl-Mega', 'Aggron-Mega', 'Alakazam-Mega', 'Ampharos-Mega', 'Audino-Mega', 'Banette-Mega',
@@ -1701,7 +1647,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		searchShow: false,
 		ruleset: [
 			'Standard AG', '!Obtainable Formes', '+Past', '+LGPE', 'Evasion Clause', 'Forme Clause', 'OHKO Clause', 'Overflow Stat Mod',
-			'Sleep Moves Clause', 'Species Reveal Clause', 'Hackmons Forme Legality', 'Mega Rayquaza Clause',
+			'Sleep Moves Clause', 'Species Reveal Clause', 'Hackmons Forme Legality', 'Mega Rayquaza Clause', 'Terastal Clause',
 		],
 		banlist: ['Calyrex-Shadow', 'Gengar-Mega', 'Miraidon', 'Moody', 'King\'s Rock', 'Razor Fang', 'Baton Pass'],
 		onValidateSet(set, format, setHas, teamHas) {
@@ -3839,6 +3785,15 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 		section: "National Dex",
 	},
 	{
+		name: "[Gen 9 Champions] National Dex",
+		mod: 'champions',
+		ruleset: ['Standard NatDex'],
+		banlist: [
+			'ND Uber', 'ND AG', 'Arena Trap', 'Moody', 'Power Construct', 'Shadow Tag', 'King\'s Rock',
+			'Quick Claw', 'Razor Fang', 'Assist', 'Baton Pass', 'Last Respects', 'Shed Tail',
+		],
+	},
+	{
 		name: "[Gen 9] National Dex",
 		mod: 'gen9',
 		ruleset: ['Standard NatDex', 'Terastal Clause'],
@@ -3850,6 +3805,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 	{
 		name: "[Gen 8] National Dex",
 		mod: 'gen8',
+		searchShow: false,
 		ruleset: ['Standard NatDex', 'Dynamax Clause'],
 		banlist: ['ND Uber', 'ND AG', 'Arena Trap', 'Moody', 'Power Construct', 'Shadow Tag', 'King\'s Rock', 'Razor Fang', 'Quick Claw', 'Baton Pass'],
 	},
@@ -3957,10 +3913,7 @@ export const Formats: import('../sim/dex-formats').FormatList = [
 			'Razor Fang', 'Hidden Power', 'Last Respects', 'Shed Tail', 'Baton Pass + Contrary', 'Baton Pass + Rapid Spin', 'Baton Pass + Well-Baked Body',
 		],
 		unbanlist: [
-			'Abomasnow-Base', 'Altaria-Base', 'Ampharos-Base', 'Appletun', 'Arboliva', 'Avalugg-Base', 'Brambleghast', 'Dewgong', 'Dusknoir', 'Eelektross-Base',
-			'Florges', 'Gastrodon', 'Golem-Base', 'Granbull', 'Grumpig', 'Hariyama', 'Hitmontop', 'Honchkrow', 'Klefki', 'Luvdisc', 'Lycanroc-Base', 'Maushold',
-			'Mimikyu-Base', 'Morpeko-Base', 'Oinkologne-M', 'Primeape', 'Raticate-Base', 'Spidops', 'Spiritomb', 'Sudowoodo', 'Swalot', 'Tatsugiri-Curly',
-			'Tatsugiri-Droopy', 'Tatsugiri-Stretchy', 'Thwackey', 'Trapinch', 'Wyrdeer', 'Ultranecrozium Z', 'Solganium Z', 'Lunalium Z', 'Mewnium Z',
+			'Alakazam-Base', 'Ludicolo', 'Gorebyss', 'Dugtrio-Alola', 'Bruxish', 'Camerupt-Base', 'Absol-Base', 'Furret', 'Samurott-Base', 'Heracross-Base', 'Sawk', 'Pachirisu', 'Regirock', 'Illumise', 'Bastiodon', 'Lycanroc-Midnight', 'Maractus', 'Tropius', 'Swampert-Base', 'Scrafty-Base', 'Lapras', 'Vanilluxe', 'Kingler', 'Snorlax', 'Bouffalant', 'Omastar', 'Tyrantrum', 'Shuckle', 'Hitmonchan', 'Noctowl', 'Dodrio', 'Zangoose', 'Floatzel', 'Mismagius', 'Machamp', 'Ultranecrozium Z', 'Solganium Z', 'Lunalium Z', 'Mewnium Z',
 			'Marshadium Z', 'Yawn',
 		],
 		// Stupid hardcode
